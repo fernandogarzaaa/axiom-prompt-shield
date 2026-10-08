@@ -18,10 +18,10 @@ jobs:
         with:
           components: clippy, rustfmt
       - name: Build
-        run: cargo build --locked
+        run: cargo build
       - name: Test
-        run: cargo test --locked
+        run: cargo test
       - name: Clippy
-        run: cargo clippy --all-targets --locked -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
       - name: Format
         run: cargo fmt --check
