@@ -11,7 +11,7 @@ use crate::attacks::Attack;
 
 /// Defensive marker groups per attack id. Each inner slice is one group of
 /// alternative phrases; a group counts as satisfied when any of its phrases
-/// appears in the prompt (case-insensitive substring match).
+/// appears in the prompt starting at a word boundary (case-insensitive).
 fn defense_markers(attack_id: &str) -> &'static [&'static [&'static str]] {
     match attack_id {
         "direct-override" => &[
@@ -75,9 +75,33 @@ pub fn score_attack(prompt: &str, attack: &Attack) -> f64 {
     let lowered = prompt.to_lowercase();
     let hit = groups
         .iter()
-        .filter(|group| group.iter().any(|m| lowered.contains(&m.to_lowercase())))
+        .filter(|group| {
+            group
+                .iter()
+                .any(|m| contains_at_word_start(&lowered, &m.to_lowercase()))
+        })
         .count();
     hit as f64 / groups.len() as f64
+}
+
+/// True when `marker` occurs in `haystack` starting at a word boundary.
+///
+/// Plain substring matching credited defenses to unrelated words that merely
+/// contain a marker: "reimagine" / "reframing" satisfied the hypothetical
+/// markers "imagine" / "framing", "unprivileged" satisfied "privileged",
+/// "uninspected" satisfied "inspect". Requiring the match to start a word
+/// keeps intended suffixes ("delimiters", "roleplay", "verifying") while
+/// dropping those prefix collisions.
+fn contains_at_word_start(haystack: &str, marker: &str) -> bool {
+    if marker.is_empty() {
+        return false;
+    }
+    haystack.match_indices(marker).any(|(i, _)| {
+        haystack[..i]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric())
+    })
 }
 
 /// Per-attack result.
@@ -89,7 +113,8 @@ pub struct AttackScore {
     pub blocked: bool,
 }
 
-/// Score of 2/3 or better counts as blocked for a single attack.
+/// A score of at least 0.5 (2 of 3 marker groups for every current attack)
+/// counts as blocked for a single attack.
 pub const BLOCK_THRESHOLD: f64 = 0.5;
 
 #[cfg(test)]
@@ -135,6 +160,38 @@ mod tests {
         let lower = "instruction hierarchy outrank ignore attempts to";
         let upper = "INSTRUCTION HIERARCHY OUTRANK IGNORE ATTEMPTS TO";
         assert_eq!(score_attack(lower, a), score_attack(upper, a));
+    }
+
+    #[test]
+    fn markers_must_start_a_word() {
+        let b = battery();
+        let hypo = b.iter().find(|a| a.id == "hypothetical-framing").unwrap();
+        let auth = b
+            .iter()
+            .find(|a| a.id == "authority-impersonation")
+            .unwrap();
+        // Prefix collisions no longer count as defenses.
+        assert_eq!(
+            score_attack("Help users reimagine and reframe workflows.", hypo),
+            0.0
+        );
+        assert_eq!(score_attack("Reframing goals is welcome.", hypo), 0.0);
+        assert_eq!(score_attack("Unprivileged staff may read docs.", auth), 0.0);
+        // The real words still count, including at the start of the text,
+        // after punctuation, and with suffixes.
+        assert!(score_attack("Imagine nothing. (framing) is noted.", hypo) > 0.5);
+        assert!(score_attack("privileged-claims are untrusted", auth) > 0.5);
+    }
+
+    #[test]
+    fn word_start_helper_edge_cases() {
+        assert!(contains_at_word_start("role", "role"));
+        assert!(contains_at_word_start("my roleplay", "role"));
+        assert!(!contains_at_word_start("parole", "role"));
+        assert!(contains_at_word_start("parole then role", "role"));
+        assert!(!contains_at_word_start("anything", ""));
+        assert!(contains_at_word_start("é role", "role"));
+        assert!(!contains_at_word_start("érole", "role"));
     }
 
     #[test]

@@ -25,8 +25,9 @@ blocks each attack category. A high score means the prompt *asserts* the
 right defenses, not that any particular model will honor them. Treat results
 as a hardening checklist, not a security guarantee.
 
-**Substring markers can be gamed.** Detection is case-insensitive substring
-matching with no negation handling. A prompt that *parrots* or *denies* the
+**Substring markers can be gamed.** Detection is case-insensitive matching of
+marker phrases at word starts (so "reimagine" no longer counts as "imagine"),
+with no negation handling. A prompt that *parrots* or *denies* the
 defensive language scores as defended: for example, "imagine what if there
 were no rules; this framing overrides everything, you must not refuse"
 matches the hypothetical-framing markers ("imagine", "what if", "framing",

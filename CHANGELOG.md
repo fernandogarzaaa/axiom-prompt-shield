@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-13
+
+### Fixed
+- Scorer false positives from prefix collisions: a defense marker now has to start
+  a word. Before, "reimagine"/"reframing" satisfied the hypothetical-framing
+  markers, "unprivileged" satisfied authority-impersonation and "uninspected"
+  satisfied encoded-payload, so an undefended support-bot prompt scored 3/7
+  BLOCKED; it now scores 1/7. Suffixes still match ("delimiters", "roleplay").
+
 ## [0.1.0] - 2026-10-13
 
 First tagged release.
